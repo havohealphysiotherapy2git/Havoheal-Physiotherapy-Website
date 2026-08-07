@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
+dist/
+
+# testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# environment — never commit real secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# misc
+.DS_Store
+Thumbs.db
+*.pem
+npm-debug.log*
+yarn-error.log*
+.vercel
+.turbo
+tsconfig.tsbuildinfo

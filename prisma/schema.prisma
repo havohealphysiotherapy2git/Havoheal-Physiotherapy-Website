@@ -1,0 +1,175 @@
+// Havoheal Physiotherapy UK LTD — booking database schema.
+//
+// Design notes:
+//  - `date` + `startTime` are stored as business-local strings so day and slot
+//    lookups are exact and timezone-proof.
+//  - `startsAt` stores the same moment as a UTC instant for sorting and range
+//    queries.
+//  - Customer-provided text (`importantMessage`) is kept separate from internal
+//    `staffNotes` so staff commentary never mixes with what the customer wrote.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+/// Delivery state of a transactional email.
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  /// Suppressed on purpose, e.g. the console provider in development.
+  SKIPPED
+}
+
+model Booking {
+  id        String @id @default(cuid())
+  /// Human-friendly reference shown to the customer, e.g. "HH-7K2P4M".
+  reference String @unique
+
+  // --- Appointment slot -------------------------------------------------
+  /// Business-local date, "YYYY-MM-DD".
+  date      String
+  /// Business-local start time, "HH:mm".
+  startTime String
+  /// Business-local end time, "HH:mm", derived from the slot duration.
+  endTime   String
+  /// The same instant in UTC, for sorting and reporting.
+  startsAt  DateTime
+  /// Duration in minutes at the time of booking (config may change later).
+  durationMinutes Int
+  /// Price in pence at the time of booking (config may change later).
+  priceInPence    Int
+
+  // --- Customer ---------------------------------------------------------
+  fullName String
+  email    String
+  phone    String
+  postcode String
+  /// Street address for the home visit.
+  address  String
+  /// Optional flat, apartment or unit number.
+  addressFlat     String?
+  /// Optional building or house name.
+  addressBuilding String?
+  /// How to get in: buzzer codes, key safes, side entrances, dogs, stairs.
+  accessInstructions String?
+  /// Where the physiotherapist can park.
+  parkingInformation String?
+  /// Free-text supplied by the customer. May contain personal information —
+  /// never log or email this field in a subject line.
+  importantMessage String?
+
+  // --- Consent and declarations (UK GDPR evidence) -----------------------
+  consentPrivacy   Boolean
+  consentPolicy    Boolean
+  consentContact   Boolean
+  /// Customer confirmed the address is inside the stated service area.
+  confirmedServiceArea Boolean @default(false)
+  /// Customer confirmed the address details they gave are accurate.
+  confirmedAddressAccurate Boolean @default(false)
+  /// Customer confirmed they understand this is a request, not a confirmation.
+  confirmedRequestNotBooking Boolean @default(false)
+  consentedAt      DateTime
+
+  // --- Workflow ---------------------------------------------------------
+  status      BookingStatus @default(PENDING)
+  /// Internal staff commentary. Never shown to the customer.
+  staffNotes  String?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  completedAt DateTime?
+  /// Set when an appointment is moved; points at the previous slot.
+  rescheduledFrom String?
+
+  // --- Integrity and audit ----------------------------------------------
+  /// Client-generated key that makes repeated submissions safe.
+  idempotencyKey String? @unique
+  /// Truncated/hashed request metadata for abuse investigation only.
+  requestFingerprint String?
+
+  // --- Email delivery tracking ------------------------------------------
+  // A booking is never rolled back because email failed. These fields record
+  // what happened so a failure can be spotted, retried and reported.
+  customerEmailStatus EmailStatus @default(PENDING)
+  businessEmailStatus EmailStatus @default(PENDING)
+  customerEmailSentAt DateTime?
+  businessEmailSentAt DateTime?
+  /// Short, non-sensitive error code only. Never a raw provider payload,
+  /// which could contain personal data or credentials.
+  emailLastErrorCode  String?
+  emailRetryCount     Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events BookingEvent[]
+
+  /// Several patients may hold the same date + start time: the business sends
+  /// out multiple physiotherapists, so a slot is not an exclusive resource.
+  /// There is deliberately NO unique constraint on (date, startTime) — any
+  /// per-slot limit is a business setting (`bookingConfig.maxBookingsPerSlot`)
+  /// enforced in the insert transaction, not a data-integrity invariant.
+  /// This index exists purely to make capacity counts and day views fast.
+  @@index([date, startTime])
+  @@index([startsAt])
+  @@index([status])
+  @@index([email])
+  @@index([customerEmailStatus])
+  @@index([businessEmailStatus])
+}
+
+/// Append-only audit trail. Contains no customer medical information.
+model BookingEvent {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  /// e.g. "created", "confirmed", "cancelled", "rescheduled", "completed".
+  type      String
+  /// Who acted: "customer", "system", or an admin email.
+  actor     String
+  /// Short, non-sensitive description of the change.
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+/// Dates the business is closed, editable without a code deploy.
+/// `src/config/booking.ts` blockedDates are merged with these at runtime.
+model BlockedDate {
+  id        String   @id @default(cuid())
+  /// "YYYY-MM-DD"
+  date      String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
+/// Contact form submissions, kept separate from bookings.
+model ContactMessage {
+  id        String   @id @default(cuid())
+  reference String   @unique
+  fullName  String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  consentContact Boolean
+  handledAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-display: 'Fraunces', Georgia, serif;
+
+    /* Focus ring — 3:1 against both light and tinted backgrounds. */
+    --focus-ring: #0f4545;
+    --focus-ring-offset: #ffffff;
+  }
+
+  * {
+    @apply border-slate-200;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Offset for the sticky header when jumping to an anchor. */
+    scroll-padding-top: 6rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* A single, unmistakable focus style everywhere. Never removed. */
+  :focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 0.35rem;
+  }
+
+  /* Dark surfaces need a light ring to stay visible. */
+  .on-dark :focus-visible {
+    outline-color: #96eae1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-semibold tracking-tight text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Respect the user's motion preference across the whole site. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Native controls follow the brand. */
+  ::selection {
+    background: #c9f5ef;
+    color: #022a2b;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  /* ---------------------------------------------------------------- */
+  /* Layout primitives                                                 */
+  /* ---------------------------------------------------------------- */
+
+  .section {
+    @apply py-16 sm:py-20 lg:py-24;
+  }
+
+  .section-tight {
+    @apply py-12 sm:py-16;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-800;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Surfaces                                                          */
+  /* ---------------------------------------------------------------- */
+
+  /* Soft glass, used sparingly and always over a solid fallback colour
+     so text contrast never depends on what is behind it. */
+  .glass {
+    @apply border border-white/60 bg-white/85 shadow-card backdrop-blur-md;
+  }
+
+  .glass-dark {
+    @apply border border-white/15 bg-white/10 backdrop-blur-md;
+  }
+
+  .card-hover {
+    @apply transition duration-300 hover:-translate-y-1 hover:shadow-lift motion-reduce:hover:translate-y-0;
+  }
+
+  /* Gradient text used only for large display headings, where the
+     contrast of every stop has been checked. */
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-700 via-ocean-700 to-violetish-700 bg-clip-text text-transparent;
+  }
+
+  /* Layered page background: soft radial washes over white. */
+  .layered-bg {
+    background-image:
+      radial-gradient(60rem 30rem at 12% -8%, rgba(18, 162, 155, 0.13), transparent 60%),
+      radial-gradient(48rem 28rem at 92% 4%, rgba(132, 89, 245, 0.12), transparent 62%),
+      radial-gradient(42rem 26rem at 50% 100%, rgba(249, 84, 53, 0.07), transparent 65%);
+  }
+
+  .layered-bg-soft {
+    background-image:
+      radial-gradient(46rem 24rem at 88% 0%, rgba(51, 130, 252, 0.1), transparent 62%),
+      radial-gradient(40rem 22rem at 6% 20%, rgba(18, 162, 155, 0.09), transparent 60%);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Prose for long-form legal and article pages                       */
+  /* ---------------------------------------------------------------- */
+
+  .prose-havoheal {
+    @apply text-[1.0625rem] leading-relaxed text-ink-soft;
+  }
+
+  .prose-havoheal h2 {
+    @apply mb-3 mt-10 text-2xl text-ink;
+  }
+
+  .prose-havoheal h3 {
+    @apply mb-2 mt-8 text-lg text-ink;
+  }
+
+  .prose-havoheal p {
+    @apply mb-4;
+  }
+
+  .prose-havoheal ul {
+    @apply mb-5 list-disc space-y-2 pl-6 marker:text-brand-600;
+  }
+
+  .prose-havoheal ol {
+    @apply mb-5 list-decimal space-y-2 pl-6 marker:font-semibold marker:text-brand-700;
+  }
+
+  .prose-havoheal a {
+    @apply font-medium text-brand-800 underline decoration-brand-300 underline-offset-4 hover:decoration-brand-700;
+  }
+
+  .prose-havoheal strong {
+    @apply font-semibold text-ink;
+  }
+
+  /* Policy tables scroll horizontally on small screens rather than
+     forcing the whole page to scroll sideways. */
+  .prose-havoheal table {
+    @apply my-6 block w-full overflow-x-auto border-collapse text-left text-sm sm:table;
+  }
+
+  .prose-havoheal th {
+    @apply border-b-2 border-slate-300 bg-slate-50 px-3 py-2.5 align-top font-semibold text-ink;
+  }
+
+  .prose-havoheal td {
+    @apply border-b border-slate-200 px-3 py-2.5 align-top;
+  }
+
+  .prose-havoheal code {
+    @apply rounded bg-slate-100 px-1.5 py-0.5 text-[0.85em] text-ink;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Accessibility helpers                                             */
+  /* ---------------------------------------------------------------- */
+
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-brand-900 focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white;
+  }
+
+  /* Every interactive control meets the 44px minimum touch target. */
+  .tap-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Hides an element from assistive technology and pointer events —
+     used for purely decorative SVG layers. */
+  .decorative {
+    @apply pointer-events-none select-none;
+  }
+
+  /* Reserve space for the sticky mobile action bar. */
+  .pb-mobile-bar {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+
+  @screen md {
+    .pb-mobile-bar {
+      padding-bottom: 0;
+    }
+  }
+}

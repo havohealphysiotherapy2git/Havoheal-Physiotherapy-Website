@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($p=\"E:\\\\Claude Projects\\\\Havoheal Physiotherapy website\\\\node_modules\"; \\(Get-ChildItem $p -Directory -ErrorAction SilentlyContinue | Measure-Object\\).Count; Test-Path \"$p\\\\next\"; Test-Path \"$p\\\\.package-lock.json\")",
+      "PowerShell(Copy-Item -LiteralPath \"E:\\\\Claude Projects\\\\Havoheal Physiotherapy website\\\\public\\\\favicon.svg\" -Destination \"E:\\\\Claude Projects\\\\Havoheal Physiotherapy website\\\\public\\\\icon.svg\" -Force)",
+      "PowerShell(cd \"E:\\\\Claude Projects\\\\Havoheal Physiotherapy website\"; $env:PLAYWRIGHT_BASE_URL=\"http://localhost:3000\"; npx playwright test tests/e2e/booking-flow.spec.ts --project=chromium --reporter=list -g \"optional\" 2>&1 | Select-Object -Skip 5 -First 40)",
+      "PowerShell(cd \"E:\\\\Claude Projects\\\\Havoheal Physiotherapy website\"; $env:PLAYWRIGHT_BASE_URL=\"http://localhost:3000\"; npx playwright test tests/e2e/booking-flow.spec.ts --project=chromium --reporter=list 2>&1 | Select-Object -Last 22)"
+    ]
+  }
+}

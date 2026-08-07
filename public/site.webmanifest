@@ -1,0 +1,26 @@
+{
+  "name": "Havoheal Healthcare — Physiotherapy",
+  "short_name": "Havoheal",
+  "description": "Book a 45-minute physiotherapy appointment for £75. Serving Birmingham and surrounding areas.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#07827e",
+  "lang": "en-GB",
+  "categories": ["health", "medical"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
