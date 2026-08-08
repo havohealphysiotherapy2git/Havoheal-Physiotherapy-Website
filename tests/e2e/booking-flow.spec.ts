@@ -68,7 +68,7 @@ test.describe('Booking flow', () => {
 
     await page.getByRole('button', { name: 'Next', exact: true }).click();
 
-    // --- Step 3: review, confirmations and consent ----------------------
+    // --- Step 3: review and submit ---------------------------------------
     await expect(page.getByText('Step 3 of 3', { exact: true })).toBeVisible();
     // The review list is the authoritative summary; scope assertions to it so
     // the page header's own price/duration chips cannot satisfy them.
@@ -81,26 +81,17 @@ test.describe('Booking flow', () => {
       review.getByText(new RegExp(`${CUSTOMER.flat}.*${CUSTOMER.postcode}`)),
     ).toBeVisible();
 
-    const serviceArea = page.getByLabel(/within the areas Havoheal Physiotherapy covers/i);
-    const addressAccurate = page.getByLabel(/address and access details above are accurate/i);
-    const requestOnly = page.getByLabel(/this is a booking request/i);
-    const privacy = page.getByLabel(/I have read the Privacy Policy/i);
-    const policy = page.getByLabel(/I agree to the Booking and Cancellation Policy/i);
-    const contact = page.getByLabel(/may contact me by phone, WhatsApp or email/i);
+    // The review step carries no tick-boxes: agreement is given by submitting,
+    // and both policies are linked in the notice above the submit button.
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByText(/By submitting, you agree to our/i)).toBeVisible();
+    await expect(review.getByRole('link', { name: /Privacy Policy/i })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Privacy Policy/i }).first()).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: /Booking and Cancellation Policy/i }).first(),
+    ).toBeVisible();
 
-    // Nothing is pre-ticked.
-    for (const box of [serviceArea, addressAccurate, requestOnly, privacy, policy, contact]) {
-      await expect(box).not.toBeChecked();
-    }
-
-    // Submitting without them must fail with a visible error.
-    await page.getByRole('button', { name: /Submit Home-Visit Booking Request/i }).click();
-    await expect(page.getByRole('alert').first()).toBeVisible();
-
-    for (const box of [serviceArea, addressAccurate, requestOnly, privacy, policy, contact]) {
-      await box.check();
-    }
-
+    // Submitting goes straight through — no consent step to satisfy first.
     await page.getByRole('button', { name: /Submit Home-Visit Booking Request/i }).click();
 
     // --- Confirmation ----------------------------------------------------

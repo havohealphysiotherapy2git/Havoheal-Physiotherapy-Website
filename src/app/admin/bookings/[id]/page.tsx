@@ -99,18 +99,23 @@ export default async function AdminBookingDetailPage({
               />
             </dl>
 
+            {/*
+              These three declarations are no longer asked for at booking time,
+              so "false" means "not collected" rather than "the customer said
+              no". Bookings taken while the tick-boxes existed still show Yes.
+            */}
             <dl className="mt-5 grid gap-3 border-t border-slate-200 pt-4 text-sm sm:grid-cols-3">
               <Detail
                 label="Confirmed in service area"
-                value={booking.confirmedServiceArea ? 'Yes' : 'No'}
+                value={booking.confirmedServiceArea ? 'Yes' : 'Not asked'}
               />
               <Detail
                 label="Confirmed address accurate"
-                value={booking.confirmedAddressAccurate ? 'Yes' : 'No'}
+                value={booking.confirmedAddressAccurate ? 'Yes' : 'Not asked'}
               />
               <Detail
                 label="Understood request, not booking"
-                value={booking.confirmedRequestNotBooking ? 'Yes' : 'No'}
+                value={booking.confirmedRequestNotBooking ? 'Yes' : 'Not asked'}
               />
             </dl>
           </section>
@@ -142,7 +147,22 @@ export default async function AdminBookingDetailPage({
             <dl className="mt-6 grid gap-3 border-t border-slate-200 pt-5 text-sm sm:grid-cols-2">
               <Detail label="Created" value={iso(booking.createdAt)} />
               <Detail label="Last updated" value={iso(booking.updatedAt)} />
-              <Detail label="Consent recorded" value={iso(booking.consentedAt)} />
+              {/*
+                Deliberately not labelled "consent": booking data is processed
+                under Article 6(1)(b), and since the tick-boxes were removed
+                this is the moment the customer submitted under the acceptance
+                notice. The "How terms were accepted" row below says which.
+              */}
+              <Detail label="Terms accepted" value={iso(booking.consentedAt)} />
+              <Detail
+                label="How terms were accepted"
+                value={
+                  booking.events.some((event) => event.type === 'terms-accepted')
+                    ? 'By submitting the form, under the acceptance notice'
+                    : 'By ticking the confirmation boxes shown at the time'
+                }
+                className="sm:col-span-2"
+              />
               <Detail
                 label="Acknowledgement email"
                 value={emailStatusLabel(

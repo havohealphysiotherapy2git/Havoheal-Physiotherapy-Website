@@ -26,12 +26,7 @@ import { track } from '@/lib/analytics';
 import { submitBooking, fetchAvailability } from '@/app/actions/booking';
 
 import { Button } from '@/components/ui/button';
-import {
-  CheckboxField,
-  ErrorSummary,
-  TextAreaField,
-  TextField,
-} from '@/components/ui/field';
+import { ErrorSummary, TextAreaField, TextField } from '@/components/ui/field';
 import { DatePicker } from '@/components/booking/date-picker';
 import { SlotPicker, type SlotOption } from '@/components/booking/slot-picker';
 import { MovementArcs } from '@/components/graphics/decor';
@@ -58,14 +53,9 @@ const STEP_FIELDS: Record<number, (keyof BookingFormValues)[]> = {
     'parkingInformation',
     'importantMessage',
   ],
-  3: [
-    'confirmedServiceArea',
-    'confirmedAddressAccurate',
-    'confirmedRequestNotBooking',
-    'consentPrivacy',
-    'consentPolicy',
-    'consentContact',
-  ],
+  // Step 3 is review-only: nothing on it needs validating, because agreement is
+  // given by submitting rather than by ticking boxes.
+  3: [],
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -81,12 +71,6 @@ const FIELD_LABELS: Record<string, string> = {
   accessInstructions: 'Access instructions',
   parkingInformation: 'Parking information',
   importantMessage: 'Access instructions or important message',
-  confirmedServiceArea: 'Service area confirmation',
-  confirmedAddressAccurate: 'Address accuracy confirmation',
-  confirmedRequestNotBooking: 'Booking request confirmation',
-  consentPrivacy: 'Privacy policy agreement',
-  consentPolicy: 'Booking and cancellation policy agreement',
-  consentContact: 'Permission to contact you',
 };
 
 export type BookingFormProps = {
@@ -163,13 +147,6 @@ export function BookingForm({
       accessInstructions: '',
       parkingInformation: '',
       importantMessage: '',
-      // Consent and confirmation boxes are never pre-ticked.
-      confirmedServiceArea: false,
-      confirmedAddressAccurate: false,
-      confirmedRequestNotBooking: false,
-      consentPrivacy: false,
-      consentPolicy: false,
-      consentContact: false,
       website: '',
       idempotencyKey: idempotencyKey.current,
     },
@@ -207,17 +184,7 @@ export function BookingForm({
         return;
       }
 
-      // Consent and confirmations are never restored: each must be given
-      // deliberately, every time.
-      const {
-        consentPrivacy: _p,
-        consentPolicy: _c,
-        consentContact: _t,
-        confirmedServiceArea: _a,
-        confirmedAddressAccurate: _b,
-        confirmedRequestNotBooking: _r,
-        ...rest
-      } = parsed.values;
+      const rest = parsed.values;
 
       // A saved date can go stale while the draft sits in storage — it may now
       // be in the past, fully booked, or a newly-closed day. Anything not in
@@ -232,12 +199,6 @@ export function BookingForm({
         date: restoredDate,
         // A time only makes sense with the date it was chosen for.
         startTime: dateIsStillOffered ? (rest.startTime ?? '') : '',
-        confirmedServiceArea: false,
-        confirmedAddressAccurate: false,
-        confirmedRequestNotBooking: false,
-        consentPrivacy: false,
-        consentPolicy: false,
-        consentContact: false,
         idempotencyKey: idempotencyKey.current,
       });
 
@@ -262,15 +223,7 @@ export function BookingForm({
     }
     const timeout = window.setTimeout(() => {
       try {
-        const {
-          consentPrivacy: _p,
-          consentPolicy: _c,
-          consentContact: _t,
-          confirmedServiceArea: _a,
-          confirmedAddressAccurate: _b,
-          confirmedRequestNotBooking: _r,
-          ...rest
-        } = values;
+        const rest = values;
 
         // Writing an empty draft would later trigger a misleading "we restored
         // your details" message, so only real content is persisted.
@@ -902,93 +855,12 @@ export function BookingForm({
                 </div>
               </section>
 
-              <section aria-labelledby="declaration-heading" className="space-y-4">
-                <h4 id="declaration-heading" className="text-lg font-semibold text-ink">
-                  Before you submit
-                </h4>
-
-                <CheckboxField
-                  id="booking-confirmedServiceArea"
-                  {...register('confirmedServiceArea')}
-                  error={errors.confirmedServiceArea?.message}
-                  label={
-                    <>
-                      I believe this address is within the areas Havoheal Physiotherapy covers.
-                    </>
-                  }
-                  hint="If you are not sure, submit anyway — we will check the postcode and tell you before anything is confirmed."
-                />
-
-                <CheckboxField
-                  id="booking-confirmedAddressAccurate"
-                  {...register('confirmedAddressAccurate')}
-                  error={errors.confirmedAddressAccurate?.message}
-                  label="I have checked that the address and access details above are accurate."
-                  hint="An incorrect address is the most common reason a visit cannot go ahead."
-                />
-
-                <CheckboxField
-                  id="booking-confirmedRequestNotBooking"
-                  {...register('confirmedRequestNotBooking')}
-                  error={errors.confirmedRequestNotBooking?.message}
-                  label="I understand this is a booking request, and the appointment is not confirmed until Havoheal Physiotherapy UK LTD confirms it."
-                />
-              </section>
-
-              <section aria-labelledby="consent-heading" className="space-y-4">
-                <h4 id="consent-heading" className="text-lg font-semibold text-ink">
-                  Your permissions
-                </h4>
-
-                <CheckboxField
-                  id="booking-consentPrivacy"
-                  {...register('consentPrivacy')}
-                  error={errors.consentPrivacy?.message}
-                  label={
-                    <>
-                      I have read the{' '}
-                      <Link
-                        href="/privacy-policy"
-                        target="_blank"
-                        className="font-semibold text-brand-800 underline decoration-brand-300 underline-offset-4"
-                      >
-                        Privacy Policy
-                        <span className="sr-only"> (opens in a new tab)</span>
-                      </Link>{' '}
-                      and understand how my details will be used.
-                    </>
-                  }
-                />
-
-                <CheckboxField
-                  id="booking-consentPolicy"
-                  {...register('consentPolicy')}
-                  error={errors.consentPolicy?.message}
-                  label={
-                    <>
-                      I agree to the{' '}
-                      <Link
-                        href="/booking-and-cancellation-policy"
-                        target="_blank"
-                        className="font-semibold text-brand-800 underline decoration-brand-300 underline-offset-4"
-                      >
-                        Booking and Cancellation Policy
-                        <span className="sr-only"> (opens in a new tab)</span>
-                      </Link>
-                      .
-                    </>
-                  }
-                />
-
-                <CheckboxField
-                  id="booking-consentContact"
-                  {...register('consentContact')}
-                  error={errors.consentContact?.message}
-                  label="Havoheal Physiotherapy UK LTD may contact me by phone, WhatsApp or email about this booking request."
-                  hint="We will only contact you about this appointment. We do not send marketing."
-                />
-              </section>
-
+              {/*
+                The six mandatory tick-boxes that used to sit here have been
+                replaced by this single notice. Submitting is the agreement —
+                a standard click-wrap — and it is recorded against the booking
+                with a timestamp. Both policies remain one tap away.
+              */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm leading-relaxed text-ink-soft">
                 <p className="flex items-start gap-2">
                   <Lock className="mt-0.5 size-4 shrink-0 text-brand-700" aria-hidden="true" />
@@ -998,6 +870,28 @@ export function BookingForm({
                     check availability and postcode coverage, and contact you to confirm the visit
                     or offer an alternative time.
                   </span>
+                </p>
+                <p className="mt-3 pl-6">
+                  By submitting, you agree to our{' '}
+                  <Link
+                    href="/privacy-policy"
+                    target="_blank"
+                    className="font-semibold text-brand-800 underline decoration-brand-300 underline-offset-4"
+                  >
+                    Privacy Policy
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    href="/booking-and-cancellation-policy"
+                    target="_blank"
+                    className="font-semibold text-brand-800 underline decoration-brand-300 underline-offset-4"
+                  >
+                    Booking and Cancellation Policy
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </Link>
+                  , and to us contacting you by phone, WhatsApp or email about this request. We
+                  only contact you about your appointment — we do not send marketing.
                 </p>
               </div>
             </div>

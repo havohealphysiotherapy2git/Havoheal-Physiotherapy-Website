@@ -72,16 +72,53 @@ model Booking {
   /// never log or email this field in a subject line.
   importantMessage String?
 
-  // --- Consent and declarations (UK GDPR evidence) -----------------------
+  // --- Terms acceptance --------------------------------------------------
+  //
+  // IMPORTANT — read before interpreting these columns.
+  //
+  // None of these is UK GDPR "consent" under Article 6(1)(a). Booking data is
+  // processed under Article 6(1)(b) — steps taken at the customer's request
+  // before entering a contract, and performance of that contract — as stated in
+  // the Privacy Policy. Consent is used on this site only for analytics
+  // cookies, which are recorded elsewhere entirely.
+  //
+  // None of them is marketing consent either. We send no marketing, and these
+  // columns must never be used to justify any.
+  //
+  // The column NAMES are historical. They date from a version of the booking
+  // form that asked the customer to tick six boxes on the review step. Those
+  // boxes were removed; renaming the columns would need a production migration
+  // for no functional gain, so the names stay and this comment carries the
+  // meaning.
+  //
+  // How to read a row:
+  //   * `termsAcceptedAt` is set on every booking — it is the moment the
+  //     customer submitted, having been shown the acceptance notice.
+  //   * The BookingEvent audit trail records HOW acceptance was given. An
+  //     event of type "terms-accepted" means click-wrap (current behaviour).
+  //     Bookings taken before that event existed were explicit tick-boxes.
+
+  /// Privacy Policy was presented and accepted. Acceptance is by submitting the
+  /// form under a notice that links to the policy — not a ticked box.
   consentPrivacy   Boolean
+  /// Booking and Cancellation Policy was presented and accepted, same way.
   consentPolicy    Boolean
+  /// The customer agreed we may contact them ABOUT THIS BOOKING by phone,
+  /// WhatsApp or email. Operational contact only. NOT marketing consent, and
+  /// not the lawful basis for the contact — that is Article 6(1)(b).
   consentContact   Boolean
-  /// Customer confirmed the address is inside the stated service area.
+
+  /// Set only while the review step asked for it. `false` on newer bookings
+  /// means "not asked", never "the customer declined".
   confirmedServiceArea Boolean @default(false)
-  /// Customer confirmed the address details they gave are accurate.
+  /// As above — "not asked" when false.
   confirmedAddressAccurate Boolean @default(false)
-  /// Customer confirmed they understand this is a request, not a confirmation.
+  /// As above — "not asked" when false.
   confirmedRequestNotBooking Boolean @default(false)
+
+  /// When the terms above were accepted, i.e. the moment of submission.
+  /// Column named `consentedAt` for historical reasons; it is an acceptance
+  /// timestamp, not evidence of GDPR consent.
   consentedAt      DateTime
 
   // --- Workflow ---------------------------------------------------------

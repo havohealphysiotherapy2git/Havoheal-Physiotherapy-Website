@@ -43,6 +43,16 @@ export type CreateBookingResult =
   | { ok: false; error: 'slot-invalid'; reason: SlotRejection }
   | { ok: false; error: 'database' };
 
+/**
+ * The audit-trail description of how a customer accepted the terms.
+ *
+ * Kept as a constant so the wording is identical on every booking and can be
+ * searched for, and so it is obvious that it describes click-wrap acceptance
+ * rather than a ticked checkbox.
+ */
+export const TERMS_ACCEPTANCE_DETAIL =
+  'Accepted by submitting the booking form, under the notice shown above the submit button linking to the Privacy Policy and the Booking and Cancellation Policy, and agreeing to contact about this booking. Not a ticked checkbox. Not marketing consent.';
+
 /** True when a per-slot limit is configured at all. */
 export function isCapacityLimited(): boolean {
   return bookingConfig.maxBookingsPerSlot !== null;
@@ -200,12 +210,36 @@ export async function createBooking({
             accessInstructions: data.accessInstructions?.trim() || null,
             parkingInformation: data.parkingInformation?.trim() || null,
             importantMessage: data.importantMessage?.trim() || null,
-            consentPrivacy: data.consentPrivacy,
-            consentPolicy: data.consentPolicy,
-            consentContact: data.consentContact,
-            confirmedServiceArea: data.confirmedServiceArea,
-            confirmedAddressAccurate: data.confirmedAddressAccurate,
-            confirmedRequestNotBooking: data.confirmedRequestNotBooking,
+            /**
+             * These record that the terms were PRESENTED AND ACCEPTED, not
+             * that six boxes were ticked — those were removed from the form.
+             *
+             * `true` is the accurate value: the review step shows a notice
+             * directly above the submit button stating that submitting means
+             * agreeing to the Privacy Policy and the Booking and Cancellation
+             * Policy, and to being contacted about this request, with a link to
+             * each policy. Submitting is therefore acceptance (click-wrap), and
+             * `consentedAt` is when it happened.
+             *
+             * Writing `false` would be worse, not more honest: it would read as
+             * "the customer refused", which is untrue and would also contradict
+             * our contacting them about their own booking.
+             *
+             * None of this is GDPR consent — booking data is processed under
+             * Article 6(1)(b) — and none of it is marketing permission.
+             *
+             * The BookingEvent written below records HOW acceptance was given,
+             * so click-wrap rows are distinguishable from the older tick-box
+             * ones without a schema change.
+             *
+             * `confirmedServiceArea`, `confirmedAddressAccurate` and
+             * `confirmedRequestNotBooking` are deliberately NOT set: those
+             * declarations are no longer asked for, so they keep their `false`
+             * database default, meaning "not collected".
+             */
+            consentPrivacy: true,
+            consentPolicy: true,
+            consentContact: true,
             consentedAt: now,
             status,
             idempotencyKey: data.idempotencyKey,
@@ -220,6 +254,25 @@ export async function createBooking({
             type: 'created',
             actor: 'customer',
             detail: `Booking request submitted for ${data.date} ${data.startTime}.`,
+          },
+        });
+
+        /**
+         * Records HOW the terms were accepted, in the same transaction as the
+         * booking itself.
+         *
+         * This is what keeps the audit trail honest after the six tick-boxes
+         * were removed: a booking carrying this event was accepted by
+         * submitting under the notice, whereas an older booking without it was
+         * accepted by ticking boxes. The boolean columns alone could not tell
+         * the two apart, and no schema change is needed to distinguish them.
+         */
+        await tx.bookingEvent.create({
+          data: {
+            bookingId: created.id,
+            type: 'terms-accepted',
+            actor: 'customer',
+            detail: TERMS_ACCEPTANCE_DETAIL,
           },
         });
 

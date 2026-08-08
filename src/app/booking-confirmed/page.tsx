@@ -146,14 +146,34 @@ export default async function BookingConfirmedPage() {
                     notice as you can if you need to change the visit.
                   </p>
 
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                    <Button asChild size="lg" variant="secondary">
+                  {/*
+                    `flex-wrap` + `flex-1 min-w-fit` on each button:
+                      - min-w-fit stops a button shrinking below its own text,
+                        which is what made "Call +44 7469 334067" wrap onto two
+                        lines while the others kept their natural width;
+                      - flex-1 then shares the leftover space equally, so all
+                        three end up the same width on desktop;
+                      - when the three no longer fit, they wrap to full-width
+                        rows instead of being squashed — no media query needed.
+                  */}
+                  <div className="mt-5 flex flex-wrap items-stretch gap-3">
+                    <Button
+                      asChild
+                      size="md"
+                      variant="secondary"
+                      className="min-w-fit flex-1 whitespace-nowrap"
+                    >
                       <a href={telHref}>
                         <Phone aria-hidden="true" />
                         Call {company.phoneDisplay}
                       </a>
                     </Button>
-                    <Button asChild size="lg" variant="whatsapp">
+                    <Button
+                      asChild
+                      size="md"
+                      variant="whatsapp"
+                      className="min-w-fit flex-1 whitespace-nowrap"
+                    >
                       <a
                         href={whatsappHref(
                           `Hello Havoheal Physiotherapy, I would like to talk about booking reference ${booking.reference}.`,
@@ -166,7 +186,12 @@ export default async function BookingConfirmedPage() {
                         <span className="sr-only"> (opens in a new tab)</span>
                       </a>
                     </Button>
-                    <Button asChild size="lg" variant="subtle">
+                    <Button
+                      asChild
+                      size="md"
+                      variant="subtle"
+                      className="min-w-fit flex-1 whitespace-nowrap"
+                    >
                       <a href={mailtoWithSubject(`Booking ${booking.reference}`)}>
                         <Mail aria-hidden="true" />
                         Email us
@@ -207,17 +232,35 @@ export default async function BookingConfirmedPage() {
                 and your booking reference. If you have not booked yet, you can start now.
               </p>
 
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg">
+              {/* Same wrapping rule as the confirmed-booking row above. */}
+              <div className="mt-7 flex flex-wrap items-stretch gap-3">
+                <Button asChild size="md" className="min-w-fit flex-1 whitespace-nowrap">
                   <Link href="/book-appointment">Book a home visit</Link>
                 </Button>
-                <Button asChild size="lg" variant="secondary">
+                <Button
+                  asChild
+                  size="md"
+                  variant="secondary"
+                  className="min-w-fit flex-1 whitespace-nowrap"
+                >
                   <a href={telHref}>
                     <Phone aria-hidden="true" />
                     Call {company.phoneDisplay}
                   </a>
                 </Button>
-                <Button asChild size="lg" variant="subtle">
+                {/*
+                  This one shows the full address rather than a short label, and
+                  it is longer than a phone screen is wide. `basis-full` gives it
+                  its own row, and `min-w-0` + `break-all` let it wrap instead of
+                  being clipped by the card — the opposite treatment to the
+                  fixed-width buttons above, for the opposite reason.
+                */}
+                <Button
+                  asChild
+                  size="md"
+                  variant="subtle"
+                  className="min-w-0 flex-1 basis-full break-all"
+                >
                   <a href={mailtoHref}>
                     <Mail aria-hidden="true" />
                     {company.email}

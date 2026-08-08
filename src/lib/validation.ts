@@ -247,54 +247,28 @@ export const customerSchema = z.object({
 export type CustomerInput = z.infer<typeof customerSchema>;
 
 // ---------------------------------------------------------------------------
-// Step 3 — consent
+// Step 3 — agreement
 // ---------------------------------------------------------------------------
 
 /**
- * `boolean().refine(...)` rather than `literal(true)` so the form can start
- * with unticked boxes (never pre-checked) while an unticked box still fails
- * validation with a message that names the specific consent.
+ * There are deliberately NO consent-checkbox fields in the booking payload.
+ *
+ * Six mandatory tick-boxes were removed from the review step: three "I confirm"
+ * declarations about the address, and three policy/contact permissions. They
+ * added friction to every booking without adding protection, and their absence
+ * cannot make a submission unsafe — nothing about them was a security control.
+ *
+ * The agreement itself has not gone away. The review step states, immediately
+ * above the submit button, that submitting means agreeing to the Privacy Policy
+ * and the Booking and Cancellation Policy and to being contacted about the
+ * request, with links to both. That is a standard click-wrap: the act of
+ * submitting IS the agreement, and it is recorded against the booking with a
+ * timestamp — see `createBooking` in src/lib/bookings.ts.
+ *
+ * The security controls are untouched: honeypot, optional Turnstile, rate
+ * limiting, idempotency key, server-side field validation and slot re-checking
+ * all still run on every submission.
  */
-export const consentSchema = z.object({
-  consentPrivacy: z
-    .boolean()
-    .refine((value) => value === true, 'Please confirm you have read the Privacy Policy.'),
-  consentPolicy: z
-    .boolean()
-    .refine(
-      (value) => value === true,
-      'Please confirm you agree to the Booking and Cancellation Policy.',
-    ),
-  consentContact: z
-    .boolean()
-    .refine(
-      (value) => value === true,
-      'Please confirm we may contact you about this booking request.',
-    ),
-});
-
-/**
- * Declarations specific to a home visit. Separate from consent because these
- * are statements of fact by the customer rather than permissions granted to us,
- * and they are stored as their own columns for the same reason.
- */
-export const homeVisitDeclarationSchema = z.object({
-  confirmedServiceArea: z
-    .boolean()
-    .refine(
-      (value) => value === true,
-      'Please confirm the address is within the areas we cover.',
-    ),
-  confirmedAddressAccurate: z
-    .boolean()
-    .refine((value) => value === true, 'Please confirm the address details are correct.'),
-  confirmedRequestNotBooking: z
-    .boolean()
-    .refine(
-      (value) => value === true,
-      'Please confirm you understand this is a booking request until we confirm it.',
-    ),
-});
 
 // ---------------------------------------------------------------------------
 // Full booking payload
@@ -302,8 +276,6 @@ export const homeVisitDeclarationSchema = z.object({
 
 export const bookingSchema = slotSchema
   .merge(customerSchema)
-  .merge(consentSchema)
-  .merge(homeVisitDeclarationSchema)
   .extend({
     /**
      * Honeypot. Real users never see or fill this field; bots usually do.
