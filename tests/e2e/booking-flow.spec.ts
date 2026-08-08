@@ -36,6 +36,134 @@ async function chooseFirstAvailableSlot(page: Page): Promise<string | null> {
   return null;
 }
 
+/**
+ * Fills steps 1 and 2 and lands on the review step, without submitting.
+ * Shared by the regression tests below.
+ */
+async function reachReviewStep(page: Page): Promise<void> {
+  await page.goto('/book-appointment');
+
+  const slot = await chooseFirstAvailableSlot(page);
+  expect(slot, 'expected at least one bookable slot').not.toBeNull();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+
+  await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+  await page.getByLabel('Full name').fill(CUSTOMER.fullName);
+  await page.getByLabel('Phone number').fill(CUSTOMER.phone);
+  await page.getByLabel('Email address').fill(CUSTOMER.email);
+  await page.getByLabel('Postcode').fill(CUSTOMER.postcode);
+  await page.getByLabel('Home-visit address').fill(CUSTOMER.address);
+
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+}
+
+/**
+ * Regression tests for a bug where pressing Next on step 2 created the booking
+ * immediately and redirected to /booking-confirmed, giving the customer no
+ * chance to review. These need no database: the assertion is that NOTHING is
+ * submitted, so they are the cheapest possible guard on the most serious
+ * failure this form can have.
+ */
+test.describe('Step 3 never submits on its own', () => {
+  test('moving from step 2 to step 3 does not submit the booking', async ({ page }) => {
+    // Fail loudly if the booking server action is ever invoked here.
+    let submissionAttempted = false;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/book-appointment')) {
+        submissionAttempted = true;
+      }
+    });
+
+    await reachReviewStep(page);
+
+    // The review step is shown...
+    await expect(page.getByText('Step 3 of 3', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Submit Home-Visit Booking Request/i }),
+    ).toBeVisible();
+
+    // ...and it stays shown. Wait well past the 1–2 seconds in the bug report.
+    await page.waitForTimeout(4000);
+
+    expect(submissionAttempted, 'no submission may be made without an explicit click').toBe(
+      false,
+    );
+    expect(new URL(page.url()).pathname).toBe('/book-appointment');
+    await expect(page.getByText('Step 3 of 3', { exact: true })).toBeVisible();
+
+    // No success or failure state has been entered — the form is simply idle.
+    // Scoped to the form: the page itself may carry the Next.js dev overlay,
+    // which also uses role="alert".
+    await expect(page.getByText(/Sending your booking request/i)).toHaveCount(0);
+    await expect(page.locator('form').getByRole('alert')).toHaveCount(0);
+  });
+
+  test('the Next button is never a submit button', async ({ page }) => {
+    await page.goto('/book-appointment');
+
+    // Step 1 and step 2 both use a plain navigation button.
+    const nextOnStepOne = page.getByRole('button', { name: 'Next', exact: true });
+    await expect(nextOnStepOne).toHaveAttribute('type', 'button');
+
+    const slot = await chooseFirstAvailableSlot(page);
+    expect(slot).not.toBeNull();
+    await nextOnStepOne.click();
+
+    await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toHaveAttribute(
+      'type',
+      'button',
+    );
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).toHaveAttribute(
+      'type',
+      'button',
+    );
+  });
+
+  test('pressing Enter in a step 2 field does not submit the booking', async ({ page }) => {
+    let submissionAttempted = false;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/book-appointment')) {
+        submissionAttempted = true;
+      }
+    });
+
+    await page.goto('/book-appointment');
+    const slot = await chooseFirstAvailableSlot(page);
+    expect(slot).not.toBeNull();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+
+    await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+    await page.getByLabel('Full name').fill(CUSTOMER.fullName);
+    // Implicit form submission: Enter inside a text input.
+    await page.getByLabel('Full name').press('Enter');
+    await page.waitForTimeout(1500);
+
+    expect(submissionAttempted, 'Enter must not create a booking from step 2').toBe(false);
+    expect(new URL(page.url()).pathname).toBe('/book-appointment');
+    await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+  });
+
+  test('going Back from step 3 does not submit the booking', async ({ page }) => {
+    let submissionAttempted = false;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/book-appointment')) {
+        submissionAttempted = true;
+      }
+    });
+
+    await reachReviewStep(page);
+    await expect(page.getByText('Step 3 of 3', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    expect(submissionAttempted, 'Back must never submit').toBe(false);
+    expect(new URL(page.url()).pathname).toBe('/book-appointment');
+  });
+});
+
 test.describe('Booking flow', () => {
   test('a visitor can request a home visit in three steps', async ({ page }) => {
     await page.goto('/book-appointment');

@@ -313,7 +313,7 @@ export function BookingForm({
   // ---------------------------------------------------------------------
   // Submission
   // ---------------------------------------------------------------------
-  const onSubmit = handleSubmit(async (formValues) => {
+  const submitBookingRequest = handleSubmit(async (formValues) => {
     setSubmitState({ kind: 'submitting' });
     track('submit_booking');
 
@@ -438,6 +438,30 @@ export function BookingForm({
       });
     }
   });
+
+  /**
+   * States the invariant plainly: a booking may only be created from the review
+   * step. Defence in depth, not the fix for the premature-submission bug — see
+   * the `key` props on the navigation buttons for that.
+   *
+   * It deliberately would NOT have caught that bug: by the time the browser
+   * performed the submit, `step` was already 3, so this check would have passed.
+   * It guards the other ways a <form> can be submitted without a click on the
+   * submit button — a future submit control rendered on an earlier step, a
+   * programmatic requestSubmit(), or implicit submission from a text field.
+   *
+   * Worth stating explicitly because until recently it was enforced only by
+   * accident: the six consent checkboxes were required to be `true` and were
+   * always `false` before the review step, so validation silently blocked every
+   * premature submission. Removing them removed that unintended protection.
+   */
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    if (step !== STEPS.length) {
+      event.preventDefault();
+      return;
+    }
+    void submitBookingRequest(event);
+  };
 
   // Errors relevant to the visible step, for the error summary.
   const stepErrors = React.useMemo(() => {
@@ -569,7 +593,14 @@ export function BookingForm({
               <p className="mt-2 text-sm leading-relaxed text-coral-950">{submitState.message}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {submitState.canRetry && (
-                  <Button size="sm" variant="secondary" onClick={() => void onSubmit()}>
+                  // Retries the submission directly rather than going through
+                  // the form's submit handler: there is no submit event here,
+                  // and this button is only ever rendered on the review step.
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void submitBookingRequest()}
+                  >
                     Try submitting again
                   </Button>
                 )}
@@ -909,13 +940,36 @@ export function BookingForm({
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
+              {/*
+                The `key` on each button is load-bearing, not decoration.
+
+                Both branches render a <Button> at the same position with the
+                same component type. Without distinct keys React reconciles them
+                as the SAME element and simply mutates the existing DOM node's
+                `type` attribute from "button" to "submit". That happens
+                synchronously inside the click handler, so by the time the
+                browser performs the click's default activation behaviour the
+                node IS a submit button — and it submits the form. The result
+                was a booking created the instant the customer pressed Next on
+                step 2, with no chance to review.
+
+                Distinct keys force React to unmount one button and mount the
+                other, so the node the browser is mid-click on never changes
+                type underneath it.
+              */}
               {step < STEPS.length ? (
-                <Button size="lg" onClick={() => void handleNext()} disabled={busy}>
+                <Button
+                  key="booking-next"
+                  type="button"
+                  size="lg"
+                  onClick={() => void handleNext()}
+                  disabled={busy}
+                >
                   Next
                   <ArrowRight aria-hidden="true" />
                 </Button>
               ) : (
-                <Button type="submit" size="lg" disabled={busy}>
+                <Button key="booking-submit" type="submit" size="lg" disabled={busy}>
                   {busy ? (
                     <>
                       <Loader2 className="animate-spin" aria-hidden="true" />
