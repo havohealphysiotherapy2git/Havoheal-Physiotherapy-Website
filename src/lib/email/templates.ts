@@ -135,6 +135,51 @@ function statusExplanation(status: BookingStatus): string {
   return `Your request has been received. Your appointment is not fully confirmed until you receive a separate confirmation from ${company.legalName}.`;
 }
 
+/** The service line shown to the customer. One service, one price. */
+function serviceLabel(data: BookingEmailData): string {
+  return `Home physiotherapy visit (${data.durationMinutes} minutes)`;
+}
+
+/** The "call or WhatsApp us" button pair, reused by every status email. */
+function contactButtons(reference: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 20px;">
+      <tr>
+        <td style="border-radius:10px;background:${BRAND.teal};">
+          <a href="${telHref}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">Call ${escapeHtml(company.phoneDisplay)}</a>
+        </td>
+        <td style="width:10px;"></td>
+        <td style="border-radius:10px;border:1px solid ${BRAND.teal};">
+          <a href="${whatsappHref(`Hello Havoheal Physiotherapy, I would like to talk about booking reference ${reference}.`)}" style="display:inline-block;padding:11px 21px;color:${BRAND.teal};font-size:15px;font-weight:600;text-decoration:none;">Message on WhatsApp</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** The change-or-cancel footer paragraph, reused by every status email. */
+function changeOrCancelParagraph(siteUrl: string): string {
+  return `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.soft};">
+      Need to change or cancel? Call or message us on ${escapeHtml(company.phoneDisplay)}, or email
+      <a href="mailto:${company.email}" style="color:${BRAND.teal};">${escapeHtml(company.email)}</a>
+      quoting your reference. Please give us as much notice as you can. Full details are in our
+      <a href="${siteUrl}/booking-and-cancellation-policy" style="color:${BRAND.teal};">Booking and Cancellation Policy</a>.
+    </p>`;
+}
+
+/** Shared plain-text sign-off, so every email ends identically. */
+function textFooter(siteUrl: string): string[] {
+  return [
+    '',
+    `To change or cancel, call or message ${company.phoneDisplay}, or email ${company.email},`,
+    'quoting your reference.',
+    `See ${siteUrl}/booking-and-cancellation-policy`,
+    '',
+    `${company.legalName} — company number ${company.companyNumber}.`,
+    `Registered office: ${company.registeredAddress}. This is not a clinic; we come to you.`,
+    '',
+    'This email is not for medical emergencies. Call 999 in an emergency or use NHS 111 when appropriate.',
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Customer acknowledgement
 // ---------------------------------------------------------------------------
@@ -220,6 +265,223 @@ export function buildCustomerAcknowledgement(data: BookingEmailData): EmailMessa
     }),
     text,
     tag: 'booking-acknowledgement',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Status-change emails, sent when an administrator acts on a booking
+// ---------------------------------------------------------------------------
+
+/**
+ * Confirmation: the visit is going ahead at the date and time shown.
+ *
+ * Distinct from the acknowledgement above, which deliberately says the request
+ * is NOT yet confirmed. This is the email the whole booking flow promises.
+ */
+export function buildBookingConfirmation(data: BookingEmailData): EmailMessage {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? company.url;
+  const dateLabel = formatLongDate(data.date);
+  const timeLabel = `${data.startTime} – ${data.endTime}`;
+
+  const rows = [
+    detailRow('Booking reference', data.reference),
+    detailRow('Name', data.fullName),
+    detailRow('Service', serviceLabel(data)),
+    detailRow('Confirmed date', dateLabel),
+    detailRow('Confirmed time', timeLabel),
+    detailRow('Duration', `${data.durationMinutes} minutes`),
+    detailRow('Price', formatPrice(data.priceInPence)),
+    detailRow('Visiting', `Your address in ${data.postcode}`),
+    detailRow('Status', bookingStatusLabels.CONFIRMED),
+  ].join('');
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Hello ${escapeHtml(firstNameOf(data.fullName))},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Good news — your home physiotherapy visit is now <strong>confirmed</strong>. A physiotherapy professional will travel to you at the date and time below.</p>
+    ${detailTable(rows)}
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Please quote your reference <strong>${escapeHtml(data.reference)}</strong> whenever you contact us about this visit.</p>
+    ${contactButtons(data.reference)}
+    <h2 style="margin:24px 0 8px;font-size:16px;color:${BRAND.deep};">Before the visit</h2>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.soft};">Please clear a space large enough to move around in, and have a firm chair available. Wear comfortable clothing that allows movement. If anything about access or parking has changed, let us know in advance.</p>
+    ${changeOrCancelParagraph(siteUrl)}
+    <p style="margin:0;font-size:13px;line-height:1.6;color:${BRAND.soft};">For your privacy, we have not repeated your full address or the notes you sent us in this email.</p>
+  `;
+
+  const text = [
+    `Hello ${firstNameOf(data.fullName)},`,
+    '',
+    'Good news — your home physiotherapy visit is now CONFIRMED.',
+    '',
+    `Booking reference: ${data.reference}`,
+    `Name: ${data.fullName}`,
+    `Service: ${serviceLabel(data)}`,
+    `Confirmed date: ${dateLabel}`,
+    `Confirmed time: ${timeLabel}`,
+    `Duration: ${data.durationMinutes} minutes`,
+    `Price: ${formatPrice(data.priceInPence)}`,
+    `Visiting: your address in ${data.postcode}`,
+    `Status: ${bookingStatusLabels.CONFIRMED}`,
+    '',
+    'Before the visit: please clear a space large enough to move around in, and',
+    'have a firm chair available. Wear comfortable clothing that allows movement.',
+    ...textFooter(siteUrl),
+  ].join('\n');
+
+  return {
+    to: data.email,
+    // No name, address or health information in the subject line.
+    subject: `Your home physiotherapy visit is confirmed — ${data.reference}`,
+    html: layout({
+      preheader: `Confirmed for ${dateLabel} at ${data.startTime}.`,
+      heading: 'Your home physiotherapy visit is confirmed',
+      body,
+      footerNote: 'You are receiving this because you booked a home visit with us.',
+    }),
+    text,
+    tag: 'booking-confirmation',
+  };
+}
+
+/**
+ * Reschedule: the visit has moved. The NEW date and time lead, and the previous
+ * slot is shown struck through the copy so the change is unmistakable.
+ */
+export function buildBookingReschedule(
+  data: BookingEmailData,
+  previous: { date: string; startTime: string } | null,
+): EmailMessage {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? company.url;
+  const dateLabel = formatLongDate(data.date);
+  const timeLabel = `${data.startTime} – ${data.endTime}`;
+  const previousLabel = previous
+    ? `${formatLongDate(previous.date)} at ${previous.startTime}`
+    : null;
+
+  const rows = [
+    detailRow('Booking reference', data.reference),
+    detailRow('Name', data.fullName),
+    detailRow('Service', serviceLabel(data)),
+    detailRow('New date', dateLabel),
+    detailRow('New time', timeLabel),
+    ...(previousLabel ? [detailRow('Previously booked for', previousLabel)] : []),
+    detailRow('Duration', `${data.durationMinutes} minutes`),
+    detailRow('Price', formatPrice(data.priceInPence)),
+    detailRow('Visiting', `Your address in ${data.postcode}`),
+    detailRow('Status', bookingStatusLabels.RESCHEDULED),
+  ].join('');
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Hello ${escapeHtml(firstNameOf(data.fullName))},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Your home physiotherapy visit has been <strong>moved to a new date and time</strong>. Please check the details below and update any reminders you have set.</p>
+    <div style="margin:0 0 18px;padding:14px 16px;border-radius:10px;background:#effcfa;border:1px solid ${BRAND.teal};">
+      <div style="font-size:13px;color:${BRAND.soft};">Your visit is now</div>
+      <div style="font-size:18px;font-weight:700;color:${BRAND.deep};margin-top:4px;">${escapeHtml(dateLabel)}</div>
+      <div style="font-size:18px;font-weight:700;color:${BRAND.deep};">${escapeHtml(timeLabel)}</div>
+      ${
+        previousLabel
+          ? `<div style="font-size:13px;color:${BRAND.soft};margin-top:8px;">Previously ${escapeHtml(previousLabel)}</div>`
+          : ''
+      }
+    </div>
+    ${detailTable(rows)}
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">If this new time does not work for you, please tell us as soon as you can and we will find another.</p>
+    ${contactButtons(data.reference)}
+    ${changeOrCancelParagraph(siteUrl)}
+    <p style="margin:0;font-size:13px;line-height:1.6;color:${BRAND.soft};">For your privacy, we have not repeated your full address or the notes you sent us in this email.</p>
+  `;
+
+  const text = [
+    `Hello ${firstNameOf(data.fullName)},`,
+    '',
+    'Your home physiotherapy visit has been MOVED to a new date and time.',
+    '',
+    `NEW DATE: ${dateLabel}`,
+    `NEW TIME: ${timeLabel}`,
+    ...(previousLabel ? [`Previously booked for: ${previousLabel}`] : []),
+    '',
+    `Booking reference: ${data.reference}`,
+    `Name: ${data.fullName}`,
+    `Service: ${serviceLabel(data)}`,
+    `Duration: ${data.durationMinutes} minutes`,
+    `Price: ${formatPrice(data.priceInPence)}`,
+    `Visiting: your address in ${data.postcode}`,
+    `Status: ${bookingStatusLabels.RESCHEDULED}`,
+    '',
+    'If this new time does not work for you, please tell us as soon as you can',
+    'and we will find another.',
+    ...textFooter(siteUrl),
+  ].join('\n');
+
+  return {
+    to: data.email,
+    subject: `Your home physiotherapy visit has been rescheduled — ${data.reference}`,
+    html: layout({
+      preheader: `New date: ${dateLabel} at ${data.startTime}.`,
+      heading: 'Your visit has been rescheduled',
+      body,
+      footerNote: 'You are receiving this because you booked a home visit with us.',
+    }),
+    text,
+    tag: 'booking-reschedule',
+  };
+}
+
+/**
+ * Cancellation. The Booking and Cancellation Policy commits to contacting the
+ * customer when a visit will not go ahead, so this closes the loop in writing
+ * whether the cancellation came from them or from us.
+ */
+export function buildBookingCancellation(data: BookingEmailData): EmailMessage {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? company.url;
+  const dateLabel = formatLongDate(data.date);
+  const timeLabel = `${data.startTime} – ${data.endTime}`;
+
+  const rows = [
+    detailRow('Booking reference', data.reference),
+    detailRow('Name', data.fullName),
+    detailRow('Service', serviceLabel(data)),
+    detailRow('Cancelled visit', `${dateLabel}, ${timeLabel}`),
+    detailRow('Status', bookingStatusLabels.CANCELLED),
+  ].join('');
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">Hello ${escapeHtml(firstNameOf(data.fullName))},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">We are writing to confirm that the home physiotherapy visit below has been <strong>cancelled</strong>. You will not be charged for it.</p>
+    ${detailTable(rows)}
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.deep};">If this was not what you expected, or you would like to arrange another visit, please get in touch and we will help.</p>
+    ${contactButtons(data.reference)}
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.soft};">You can also book a new visit at any time at <a href="${siteUrl}/book-appointment" style="color:${BRAND.teal};">${escapeHtml(company.domain)}</a>.</p>
+  `;
+
+  const text = [
+    `Hello ${firstNameOf(data.fullName)},`,
+    '',
+    'We are writing to confirm that the home physiotherapy visit below has been',
+    'CANCELLED. You will not be charged for it.',
+    '',
+    `Booking reference: ${data.reference}`,
+    `Name: ${data.fullName}`,
+    `Service: ${serviceLabel(data)}`,
+    `Cancelled visit: ${dateLabel}, ${timeLabel}`,
+    `Status: ${bookingStatusLabels.CANCELLED}`,
+    '',
+    'If this was not what you expected, or you would like to arrange another',
+    'visit, please get in touch and we will help.',
+    `Book again: ${siteUrl}/book-appointment`,
+    ...textFooter(siteUrl),
+  ].join('\n');
+
+  return {
+    to: data.email,
+    subject: `Your home physiotherapy visit has been cancelled — ${data.reference}`,
+    html: layout({
+      preheader: `Cancelled: ${dateLabel} at ${data.startTime}.`,
+      heading: 'Your visit has been cancelled',
+      body,
+      footerNote: 'You are receiving this because you booked a home visit with us.',
+    }),
+    text,
+    tag: 'booking-cancellation',
   };
 }
 

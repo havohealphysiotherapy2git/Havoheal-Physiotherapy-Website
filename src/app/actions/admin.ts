@@ -17,6 +17,10 @@ import { getClientIp } from '@/lib/request-context';
 import { rateLimitKey } from '@/lib/signed-value';
 import { businessTimeToUtc, checkSlotBookable, getSlotEnd } from '@/lib/slots';
 import { LIVE_STATUSES } from '@/lib/bookings';
+import {
+  sendBookingStatusEmail,
+  type StatusEmailResult,
+} from '@/lib/email/booking-notifications';
 import { bookingConfig } from '@/config/booking';
 
 export type AdminLoginResult = { status: 'error'; message: string } | { status: 'success' };
@@ -71,7 +75,38 @@ export async function adminLogout(): Promise<void> {
   redirect('/admin/login');
 }
 
-export type AdminActionResult = { ok: true; message: string } | { ok: false; message: string };
+export type AdminActionResult =
+  | {
+      ok: true;
+      message: string;
+      /**
+       * "warning" means the change was saved but something needs the admin's
+       * attention — almost always that the patient email did not go out, so
+       * they must be told another way.
+       */
+      tone?: 'success' | 'warning';
+    }
+  | { ok: false; message: string; tone?: 'success' | 'warning' };
+
+/** Amber rather than green whenever the patient was not actually emailed. */
+function emailTone(email: StatusEmailResult): { tone: 'success' | 'warning' } {
+  return { tone: email.sent ? 'success' : 'warning' };
+}
+
+/**
+ * The sentence appended to the admin's confirmation message.
+ *
+ * It always states plainly whether the patient was emailed. Saying "confirmed"
+ * while the email silently failed is how a patient ends up expecting a visit
+ * nobody told them about.
+ */
+function emailNote(email: StatusEmailResult, kind: string): string {
+  if (email.sent) return `The patient has been sent a ${kind} email.`;
+  if (email.skipped) {
+    return `No ${kind} email was sent because email sending is disabled on this deployment (EMAIL_PROVIDER=console).`;
+  }
+  return `The ${kind} email could NOT be sent (${email.errorCode ?? 'unknown'}). Please contact the patient directly — the booking change itself has been saved.`;
+}
 
 /**
  * Applies an administrative change to a booking.
@@ -94,6 +129,17 @@ export async function updateBooking(input: unknown): Promise<AdminActionResult> 
   try {
     switch (action) {
       case 'confirm': {
+        // Guard against a double-click or a second admin acting on the same
+        // booking: re-confirming would email the patient the same thing twice.
+        if (booking.status === 'CONFIRMED') {
+          return {
+            ok: true,
+            tone: 'warning',
+            message:
+              'This booking was already confirmed, so no further email was sent to the patient.',
+          };
+        }
+
         await prisma.$transaction([
           prisma.booking.update({
             where: { id: bookingId },
@@ -108,11 +154,31 @@ export async function updateBooking(input: unknown): Promise<AdminActionResult> 
             },
           }),
         ]);
+
+        // Database first, email second. A delivery failure never undoes the
+        // confirmation — it is reported to the admin instead.
+        const email = await sendBookingStatusEmail(bookingId, 'confirmed', {
+          actor: session.email,
+        });
+
         revalidatePath('/admin/bookings');
-        return { ok: true, message: 'Booking confirmed.' };
+        return {
+          ok: true,
+          ...emailTone(email),
+          message: `Booking confirmed. ${emailNote(email, 'confirmation')}`,
+        };
       }
 
       case 'cancel': {
+        if (booking.status === 'CANCELLED') {
+          return {
+            ok: true,
+            tone: 'warning',
+            message:
+              'This booking was already cancelled, so no further email was sent to the patient.',
+          };
+        }
+
         await prisma.$transaction([
           prisma.booking.update({
             where: { id: bookingId },
@@ -127,8 +193,17 @@ export async function updateBooking(input: unknown): Promise<AdminActionResult> 
             },
           }),
         ]);
+
+        const email = await sendBookingStatusEmail(bookingId, 'cancelled', {
+          actor: session.email,
+        });
+
         revalidatePath('/admin/bookings');
-        return { ok: true, message: 'Booking cancelled and the slot released.' };
+        return {
+          ok: true,
+          ...emailTone(email),
+          message: `Booking cancelled and the slot released. ${emailNote(email, 'cancellation')}`,
+        };
       }
 
       case 'complete': {
@@ -181,6 +256,19 @@ export async function updateBooking(input: unknown): Promise<AdminActionResult> 
           }
         }
 
+        // Nothing actually moved — do not email the patient about a change
+        // that did not happen.
+        if (booking.date === date && booking.startTime === startTime) {
+          return {
+            ok: true,
+            tone: 'warning',
+            message:
+              'That is already the booked date and time, so nothing changed and no email was sent.',
+          };
+        }
+
+        const previousSlot = { date: booking.date, startTime: booking.startTime };
+
         await prisma.$transaction([
           prisma.booking.update({
             where: { id: bookingId },
@@ -202,8 +290,20 @@ export async function updateBooking(input: unknown): Promise<AdminActionResult> 
             },
           }),
         ]);
+
+        // The email is built from the re-read booking, so it always shows the
+        // NEW slot; `previousSlot` is passed so it can also show what changed.
+        const email = await sendBookingStatusEmail(bookingId, 'rescheduled', {
+          actor: session.email,
+          previousSlot,
+        });
+
         revalidatePath('/admin/bookings');
-        return { ok: true, message: 'Booking rescheduled. Remember to tell the customer.' };
+        return {
+          ok: true,
+          ...emailTone(email),
+          message: `Booking rescheduled. ${emailNote(email, 'reschedule')}`,
+        };
       }
 
       case 'note': {

@@ -75,9 +75,13 @@ export function BookingActionsPanel({
         <div
           role="status"
           className={`rounded-xl border-2 p-3 text-sm ${
-            result.ok
-              ? 'border-brand-300 bg-brand-50 text-brand-900'
-              : 'border-coral-500 bg-coral-50 text-coral-900'
+            !result.ok
+              ? 'border-coral-500 bg-coral-50 text-coral-900'
+              : // Amber when the change saved but the patient was not emailed:
+                // green would imply the patient has been told, and they have not.
+                result.tone === 'warning'
+                ? 'border-sand-400 bg-sand-50 text-sand-900'
+                : 'border-brand-300 bg-brand-50 text-brand-900'
           }`}
         >
           {result.message}
